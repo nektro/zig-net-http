@@ -3,6 +3,7 @@ const builtin = @import("builtin");
 const net = @import("net");
 const url = @import("url");
 const nio = @import("nio");
+const extras = @import("extras");
 
 pub const Method = enum {
     GET,
@@ -214,7 +215,7 @@ pub fn open(allocator: std.mem.Allocator, method: Method, input: []const u8) !Cl
         .writer = bufw,
         .reader = .init(conn),
         .status = @enumFromInt(0),
-        .headers_raw = "",
+        .headers = .init(allocator),
     };
 }
 
@@ -224,11 +225,11 @@ pub const ClientRequest = struct {
     writer: nio.BufferedWriter(4096, net.Stream),
     reader: nio.BufferedReader(4096, net.Stream),
     status: Status,
-    headers_raw: []const u8,
+    headers: HeadersMap,
 
-    pub fn close(req: *const ClientRequest, allocator: std.mem.Allocator) void {
+    pub fn close(req: *ClientRequest) void {
         req.stream.close();
-        allocator.free(req.headers_raw);
+        req.headers.deinit();
     }
 
     pub fn writeHeader(req: *ClientRequest, name: []const u8, value: []const u8) !void {
@@ -258,13 +259,19 @@ pub const ClientRequest = struct {
         _ = try req.readUntilDelimitersBuf(&phrase_buf, "\r\n");
         req.status = status;
 
-        var headers_list = std.ArrayList(u8).init(req.allocator);
-        errdefer headers_list.deinit();
+        var headers_list = req.headers.data.list.toManaged(req.allocator);
+        defer req.headers.data.list = headers_list.moveToUnmanaged();
         while (true) {
-            const header_len = try req.readUntilDelimitersArrayList(&headers_list, "\r\n", 1024);
-            if (header_len == 0) break;
+            const header_line = try req.readUntilDelimitersArrayList(&headers_list, "\r\n", 1024);
+            if (header_line.len == 0) break;
+            const colon_pos = std.mem.indexOfScalar(u8, header_line, ':') orelse return error.Bad;
+            const name = header_line[0..colon_pos];
+            if (!extras.matchesAll(u8, name, std.ascii.isAscii)) return error.Bad;
+            for (name) |*c| c.* = std.ascii.toLower(c.*);
+            if (header_line.len == colon_pos or header_line[colon_pos + 1] != ' ') return error.Bad;
+            const value = header_line[colon_pos + 2 ..];
+            try req.headers.data.lengths.appendSlice(req.allocator, &.{ name.len, 2, value.len, 2 });
         }
-        req.headers_raw = try headers_list.toOwnedSlice();
     }
 
     pub const ReadError = net.Stream.ReadError;
@@ -283,5 +290,31 @@ pub const ClientRequest = struct {
             .vtable = &.{ .read = S.read },
             .state = @ptrCast(self),
         };
+    }
+};
+
+pub const HeadersMap = struct {
+    data: extras.ManyArrayList(u8),
+
+    pub fn init(allocator: std.mem.Allocator) HeadersMap {
+        return .{
+            .data = .init(allocator),
+        };
+    }
+
+    pub fn deinit(map: *HeadersMap) void {
+        map.data.deinit();
+    }
+
+    pub fn count(map: *const HeadersMap) usize {
+        return map.data.lengths.items.len / 4;
+    }
+
+    pub fn name(map: *const HeadersMap, idx: usize) []const u8 {
+        return map.data.items(idx * 4 + 0);
+    }
+
+    pub fn value(map: *const HeadersMap, idx: usize) []const u8 {
+        return map.data.items(idx * 4 + 2);
     }
 };

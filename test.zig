@@ -8,7 +8,7 @@ const Scheme = enum { http };
 test {
     const allocator = std.testing.allocator;
     var req = try http.open(allocator, .GET, "http://he.net/");
-    defer req.close(allocator);
+    defer req.close();
     try req.writeUA();
     try req.send();
 }
@@ -26,7 +26,7 @@ fn httpbinMethod(comptime scheme: Scheme, comptime method: http.Method) !void {
     const allocator = std.testing.allocator;
     const url = @tagName(scheme) ++ "://httpbin.org/" ++ comptime extras.asciiLowerComptime(@tagName(method));
     var req = try http.open(allocator, method, url);
-    defer req.close(allocator);
+    defer req.close();
     try req.writeUA();
     try req.send();
     try expect(req.status).toEqual(.ok);
@@ -40,7 +40,7 @@ fn httpbinUserAgent(comptime scheme: Scheme) !void {
     const allocator = std.testing.allocator;
     const url = @tagName(scheme) ++ "://httpbin.org/user-agent";
     var req = try http.open(allocator, .GET, url);
-    defer req.close(allocator);
+    defer req.close();
     try req.writeUA();
     try req.send();
     try expect(req.status).toEqual(.ok);
