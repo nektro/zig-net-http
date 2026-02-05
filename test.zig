@@ -23,6 +23,7 @@ fn httpbinMethodGet(comptime scheme: Scheme) !void {
     defer req.close(allocator);
     try req.writeUA();
     try req.send();
+    try expect(req.status).toEqual(.ok);
     const doc = try json.parse(allocator, "httpbinMethodGet", &req, .{ .support_trailing_commas = false, .maximum_depth = 2 });
     defer doc.deinit(allocator);
     doc.acquire();

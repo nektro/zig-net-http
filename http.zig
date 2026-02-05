@@ -213,6 +213,7 @@ pub fn open(allocator: std.mem.Allocator, method: Method, input: []const u8) !Cl
         .stream = conn,
         .writer = bufw,
         .reader = .init(conn),
+        .status = @enumFromInt(0),
         .headers_raw = "",
     };
 }
@@ -222,6 +223,7 @@ pub const ClientRequest = struct {
     stream: net.Stream,
     writer: nio.BufferedWriter(4096, net.Stream),
     reader: nio.BufferedReader(4096, net.Stream),
+    status: Status,
     headers_raw: []const u8,
 
     pub fn close(req: *const ClientRequest, allocator: std.mem.Allocator) void {
@@ -257,6 +259,7 @@ pub const ClientRequest = struct {
         if (status.phrase()) |phrase|
             if (!std.mem.eql(u8, actual_phrase, phrase))
                 return error.Bad;
+        req.status = status;
 
         var headers_list = std.ArrayList(u8).init(req.allocator);
         errdefer headers_list.deinit();
