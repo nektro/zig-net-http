@@ -19,6 +19,7 @@ test { try httpbinMethod(.http, .POST); }
 test { try httpbinMethod(.http, .PUT); }
 test { try httpbinMethod(.http, .PATCH); }
 test { try httpbinMethod(.http, .DELETE); }
+test { try httpbinUserAgent(.http); }
 // zig fmt: on
 
 fn httpbinMethod(comptime scheme: Scheme, comptime method: http.Method) !void {
@@ -34,4 +35,18 @@ fn httpbinMethod(comptime scheme: Scheme, comptime method: http.Method) !void {
     doc.acquire();
     defer doc.release();
     try expect(doc.root.object().getS("url")).toEqualString(url);
+}
+fn httpbinUserAgent(comptime scheme: Scheme) !void {
+    const allocator = std.testing.allocator;
+    const url = @tagName(scheme) ++ "://httpbin.org/user-agent";
+    var req = try http.open(allocator, .GET, url);
+    defer req.close(allocator);
+    try req.writeUA();
+    try req.send();
+    try expect(req.status).toEqual(.ok);
+    const doc = try json.parse(allocator, "httpbinMethod", &req, .{ .support_trailing_commas = false, .maximum_depth = 2 });
+    defer doc.deinit(allocator);
+    doc.acquire();
+    defer doc.release();
+    try expect(doc.root.object().getS("user-agent")).toEqualString("WIP https://github.com/nektro/zig-net-http");
 }
