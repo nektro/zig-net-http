@@ -255,10 +255,7 @@ pub const ClientRequest = struct {
         const status = std.meta.intToEnum(Status, status_int) catch return error.Bad;
         if (!std.mem.eql(u8, &try req.readArray(1), " ")) return error.Bad;
         var phrase_buf: [64]u8 = undefined;
-        const actual_phrase = try req.readUntilDelimitersBuf(&phrase_buf, "\r\n");
-        if (status.phrase()) |phrase|
-            if (!std.mem.eql(u8, actual_phrase, phrase))
-                return error.Bad;
+        _ = try req.readUntilDelimitersBuf(&phrase_buf, "\r\n");
         req.status = status;
 
         var headers_list = std.ArrayList(u8).init(req.allocator);
