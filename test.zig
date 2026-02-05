@@ -2,6 +2,7 @@ const std = @import("std");
 const http = @import("http");
 const json = @import("json");
 const expect = @import("expect").expect;
+const extras = @import("extras");
 const Scheme = enum { http };
 
 test {
@@ -13,18 +14,22 @@ test {
 }
 
 // zig fmt: off
-test { try httpbinMethodGet(.http); }
+test { try httpbinMethod(.http, .GET); }
+test { try httpbinMethod(.http, .POST); }
+test { try httpbinMethod(.http, .PUT); }
+test { try httpbinMethod(.http, .PATCH); }
+test { try httpbinMethod(.http, .DELETE); }
 // zig fmt: on
 
-fn httpbinMethodGet(comptime scheme: Scheme) !void {
+fn httpbinMethod(comptime scheme: Scheme, comptime method: http.Method) !void {
     const allocator = std.testing.allocator;
-    const url = @tagName(scheme) ++ "://httpbin.org/get";
-    var req = try http.open(allocator, .GET, url);
+    const url = @tagName(scheme) ++ "://httpbin.org/" ++ comptime extras.asciiLowerComptime(@tagName(method));
+    var req = try http.open(allocator, method, url);
     defer req.close(allocator);
     try req.writeUA();
     try req.send();
     try expect(req.status).toEqual(.ok);
-    const doc = try json.parse(allocator, "httpbinMethodGet", &req, .{ .support_trailing_commas = false, .maximum_depth = 2 });
+    const doc = try json.parse(allocator, "httpbinMethod", &req, .{ .support_trailing_commas = false, .maximum_depth = 2 });
     defer doc.deinit(allocator);
     doc.acquire();
     defer doc.release();
