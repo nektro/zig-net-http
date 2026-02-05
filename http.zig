@@ -317,4 +317,13 @@ pub const HeadersMap = struct {
     pub fn value(map: *const HeadersMap, idx: usize) []const u8 {
         return map.data.items(idx * 4 + 2);
     }
+
+    pub fn find(map: *const HeadersMap, needle: []const u8) ?[]const u8 {
+        for (0..map.count()) |i| {
+            if (std.mem.eql(u8, map.name(i), needle)) {
+                return map.value(i);
+            }
+        }
+        return null;
+    }
 };

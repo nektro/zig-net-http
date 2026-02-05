@@ -4,6 +4,7 @@ const json = @import("json");
 const expect = @import("expect").expect;
 const extras = @import("extras");
 const Scheme = enum { http };
+const Compression = enum { deflate, gzip, brotli };
 
 test {
     const allocator = std.testing.allocator;
@@ -20,6 +21,9 @@ test { try httpbinMethod(.http, .PUT); }
 test { try httpbinMethod(.http, .PATCH); }
 test { try httpbinMethod(.http, .DELETE); }
 test { try httpbinUserAgent(.http); }
+test { try httpbinCompresssed(.http, .deflate); }
+test { try httpbinCompresssed(.http, .gzip); }
+test { try httpbinCompresssed(.http, .brotli); }
 // zig fmt: on
 
 fn httpbinMethod(comptime scheme: Scheme, comptime method: http.Method) !void {
@@ -49,4 +53,17 @@ fn httpbinUserAgent(comptime scheme: Scheme) !void {
     doc.acquire();
     defer doc.release();
     try expect(doc.root.object().getS("user-agent")).toEqualString("WIP https://github.com/nektro/zig-net-http");
+}
+fn httpbinCompresssed(comptime scheme: Scheme, comptime compression: Compression) !void {
+    const allocator = std.testing.allocator;
+    const url = @tagName(scheme) ++ "://httpbin.org/" ++ @tagName(compression);
+    var req = try http.open(allocator, .GET, url);
+    defer req.close();
+    try req.writeUA();
+    try req.send();
+    try expect(req.status).toEqual(.ok);
+    try expect(req.headers.find("content-encoding")).toEqualString(switch (compression) {
+        else => |tag| @tagName(tag),
+        .brotli => "br",
+    });
 }
