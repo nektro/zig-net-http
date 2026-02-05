@@ -1,0 +1,12 @@
+id: zgi0a4tqvku20yrgs0gseuzf3x8bx99ex6sojjbyiokmbqc9
+name: http
+main: http.zig
+license: MPL-2.0
+description: An alternative HTTP server/client layer
+dependencies:
+  - src: git https://github.com/nektro/zig-net
+  - src: git https://github.com/nektro/zig-whatwg-url
+  - src: git https://github.com/nektro/zig-nio
+root_dependencies:
+  - src: git https://github.com/nektro/zig-json
+  - src: git https://github.com/nektro/zig-expect
