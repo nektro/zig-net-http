@@ -252,7 +252,7 @@ pub const ClientRequest = struct {
 
         // HTTP/1.1 200 OK
         if (!std.mem.eql(u8, &try req.readArray(9), "HTTP/1.1 ")) return error.Bad;
-        const status_int = std.fmt.parseInt(u16, &try req.readArray(3), 10) catch return error.Bad;
+        const status_int = extras.parseDigits(u16, &try req.readArray(3), 10) catch return error.Bad;
         const status = std.meta.intToEnum(Status, status_int) catch return error.Bad;
         if (!std.mem.eql(u8, &try req.readArray(1), " ")) return error.Bad;
         var phrase_buf: [64]u8 = undefined;
