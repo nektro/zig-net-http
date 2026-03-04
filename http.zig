@@ -85,9 +85,7 @@ pub const Status = enum(u10) {
     not_extended = 510, // RFC2774
     network_authentication_required = 511, // RFC6585
 
-    _,
-
-    pub fn phrase(self: Status) ?[]const u8 {
+    pub fn phrase(self: Status) []const u8 {
         return switch (self) {
             // 1xx statuses
             .@"continue" => "Continue",
@@ -160,8 +158,6 @@ pub const Status = enum(u10) {
             .loop_detected => "Loop Detected",
             .not_extended => "Not Extended",
             .network_authentication_required => "Network Authentication Required",
-
-            else => return null,
         };
     }
 };
