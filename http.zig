@@ -4,6 +4,7 @@ const net = @import("net");
 const url = @import("url");
 const nio = @import("nio");
 const extras = @import("extras");
+const nfs = @import("nfs");
 
 pub const Method = enum {
     GET,
@@ -160,6 +161,14 @@ pub const Status = enum(u10) {
             .network_authentication_required => "Network Authentication Required",
         };
     }
+
+    pub fn digits(self: Status) [3]u8 {
+        var result: [3]u8 = undefined;
+        result[0] = @intCast((@intFromEnum(self) / 100) + '0');
+        result[1] = @intCast((@intFromEnum(self) / 10 % 10) + '0');
+        result[2] = @intCast((@intFromEnum(self) % 10) + '0');
+        return result;
+    }
 };
 
 pub fn open(allocator: std.mem.Allocator, method: Method, input: []const u8) !ClientRequest {
@@ -302,6 +311,46 @@ pub const HeadersMap = struct {
         map.data.deinit();
     }
 
+    fn findIndex(map: *const HeadersMap, n: []const u8) ?usize {
+        for (0..map.count()) |i| {
+            if (std.mem.eql(u8, map.name(i), n)) {
+                return i;
+            }
+        }
+        return null;
+    }
+
+    pub fn append(map: *HeadersMap, n: []const u8, v: []const u8) !void {
+        if (map.findIndex(n)) |i| {
+            try map.data.appendSlice(i * 4 + 2, ", ");
+            try map.data.appendSlice(i * 4 + 2, v);
+            return;
+        }
+        try map.data.appendSlice(try map.data.add(), n);
+        try map.data.appendSlice(try map.data.add(), ": ");
+        try map.data.appendSlice(try map.data.add(), v);
+        try map.data.appendSlice(try map.data.add(), "\r\n");
+    }
+
+    pub fn set(map: *HeadersMap, n: []const u8, v: []const u8) !void {
+        if (map.findIndex(n)) |i| {
+            try map.data.set(i * 4 + 2, v);
+            return;
+        }
+        try map.data.appendSlice(try map.data.add(), n);
+        try map.data.appendSlice(try map.data.add(), ": ");
+        try map.data.appendSlice(try map.data.add(), v);
+        try map.data.appendSlice(try map.data.add(), "\r\n");
+    }
+
+    pub fn remove(map: *HeadersMap, n: []const u8) void {
+        const i = map.findIndex(n) orelse return;
+        map.data.remove(i * 4);
+        map.data.remove(i * 4);
+        map.data.remove(i * 4);
+        map.data.remove(i * 4);
+    }
+
     pub fn count(map: *const HeadersMap) usize {
         return map.data.lengths.items.len / 4;
     }
@@ -321,5 +370,186 @@ pub const HeadersMap = struct {
             }
         }
         return null;
+    }
+};
+
+pub const Server = struct {
+    conn: net.Server.Connection,
+    reader: nio.BufferedReader(4096, net.Stream),
+    writer: nio.BufferedWriter(4096, net.Stream),
+    state: enum {
+        ready,
+        receiving_head,
+        received_head,
+    },
+
+    pub fn init(conn: net.Server.Connection) Server {
+        return .{
+            .conn = conn,
+            .reader = .init(conn.stream),
+            .writer = .init(conn.stream),
+            .state = .ready,
+        };
+    }
+
+    pub fn receiveHead(server: *Server, allocator: std.mem.Allocator) !ServerRequest {
+        std.debug.assert(server.state == .ready);
+        server.state = .receiving_head;
+        var scratch_buffer: [8192]u8 = undefined;
+
+        const method_s = try server.reader.readUntilDelimitersBuf(&scratch_buffer, " ");
+        const method = std.meta.stringToEnum(Method, method_s) orelse return error.InvalidRequest;
+
+        const target_s = try server.reader.readUntilDelimitersBuf(&scratch_buffer, " ");
+        const target_url_root: url.URL = .{
+            .href = "file:///",
+            .protocol = "file:",
+            .username = "",
+            .password = "",
+            .hostname = "",
+            .hostname_kind = .unset,
+            .port = "",
+            .host = "",
+            .pathname = "/",
+            .search = "",
+            .hash = "",
+            .has_opaque_path = false,
+        };
+        const target_url = try url.URL.parseBasic(allocator, target_s, &target_url_root, null);
+        errdefer allocator.free(target_url.href);
+
+        const version_s = try server.reader.readUntilDelimitersBuf(&scratch_buffer, "\r\n");
+        if (version_s.len != 8) return error.InvalidRequest;
+        if (std.mem.bytesToValue(u64, version_s[0..8]) != comptime std.mem.bytesToValue(u64, "HTTP/1.1")) return error.InvalidRequest;
+
+        var headers: HeadersMap = .init(allocator);
+        errdefer headers.deinit();
+        try headers.data.list.ensureUnusedCapacity(allocator, 512);
+        try headers.data.lengths.ensureUnusedCapacity(allocator, 40);
+
+        while (true) {
+            const line = try server.reader.readUntilDelimitersBuf(&scratch_buffer, "\r\n");
+            if (line.len == 0) break;
+            const name_end = std.mem.indexOfScalar(u8, line, ':') orelse return error.InvalidRequest;
+            const name = line[0..name_end];
+            for (name) |*c| {
+                switch (c.*) {
+                    'A'...'Z' => {},
+                    'a'...'z' => {},
+                    '0'...'9' => {},
+                    '-' => {},
+                    else => return error.InvalidRequest,
+                }
+                switch (c.*) {
+                    'A'...'Z' => c.* = c.* - 'A' + 'a',
+                    else => {},
+                }
+            }
+            const value = std.mem.trim(u8, line[name_end + 1 ..], " ");
+            try headers.append(name, value);
+        }
+        server.state = .received_head;
+
+        return .{
+            .server = server,
+            .method = method,
+            .target = target_url,
+            .headers = headers,
+        };
+    }
+};
+
+pub const ServerRequest = struct {
+    server: *Server,
+    method: Method,
+    target: url.URL,
+    headers: HeadersMap,
+
+    pub fn deinit(req: *ServerRequest, allocator: std.mem.Allocator) void {
+        allocator.free(req.target.href);
+        req.headers.deinit();
+    }
+
+    pub fn readAllAlloc(req: *ServerRequest, allocator: std.mem.Allocator, max_size: usize) ![]u8 {
+        if (req.headers.find("content-length")) |s| {
+            const content_length = try extras.parseDigits(u64, s, 10);
+            if (content_length > max_size) return error.StreamTooLong;
+            var list: std.ArrayListUnmanaged(u8) = .{};
+            try list.ensureUnusedCapacity(allocator, content_length);
+            var total: usize = 0;
+            while (total < content_length) {
+                const len = try req.server.reader.read(list.items.ptr[total..list.capacity]);
+                if (len == 0) break;
+                total += len;
+                list.items.len += len;
+            }
+            return list.toOwnedSlice(allocator);
+        }
+        if (req.headers.find("transfer-encoding")) |s| {
+            if (std.mem.eql(u8, s, "chunked")) {
+                return error.TEChunked;
+            }
+            return error.TE;
+        }
+        return "";
+    }
+
+    pub fn pipeTo(req: *ServerRequest, writable: anytype, max_size: ?usize) !void {
+        if (req.headers.find("content-length")) |s| {
+            const content_length = try extras.parseDigits(u64, s, 10);
+            if (max_size) |max| if (content_length > max) return error.StreamTooLong;
+            var total: usize = 0;
+            var scratch_buffer: [4096]u8 = undefined;
+            while (total < content_length) {
+                const len = try req.server.reader.read(&scratch_buffer);
+                if (len == 0) break;
+                total += len;
+                try writable.writeAll(scratch_buffer[0..len]);
+            }
+            return;
+        }
+        if (req.headers.find("transfer-encoding")) |s| {
+            if (std.mem.eql(u8, s, "chunked")) {
+                return error.TEChunked;
+            }
+            return error.TE;
+        }
+    }
+
+    pub fn respondFull(req: *ServerRequest, status: Status, headers: *HeadersMap, body: []const u8) !void {
+        try req.server.writer.writevAll(&.{ "HTTP/1.1", " ", &status.digits(), " ", status.phrase(), "\r\n" });
+
+        try headers.set("connection", "close");
+        headers.remove("content-length");
+        try req.server.writer.writeAll(headers.data.list.items);
+        try req.server.writer.writeAll("content-length: ");
+        try req.server.writer.writeIntPretty(body.len, 10, .lower);
+        try req.server.writer.writeAll("\r\n");
+
+        try req.server.writer.writeAll("\r\n");
+        try req.server.writer.writeAll(body);
+    }
+
+    pub fn respondStreaming(req: *ServerRequest, status: Status, headers: *HeadersMap, body_length: ?u64) !void {
+        try req.server.writer.writevAll(&.{ "HTTP/1.1", " ", &status.digits(), " ", status.phrase(), "\r\n" });
+
+        headers.remove("connection");
+        headers.remove("content-length");
+        headers.remove("transfer-encoding");
+        try req.server.writer.writeAll(headers.data.list.items);
+        try req.server.writer.writeAll("connection: close\r\n");
+        if (body_length) |len| {
+            try req.server.writer.writeAll("content-length: ");
+            try req.server.writer.writeIntPretty(len, 10, .lower);
+            try req.server.writer.writeAll("\r\n");
+        } else {
+            try req.server.writer.writeAll("transfer-encoding: chunked\r\n");
+        }
+
+        try req.server.writer.writeAll("\r\n");
+    }
+
+    pub fn sendfile(req: *ServerRequest, file: nfs.File, offset: net.off_t, count: ?usize) !void {
+        return req.server.conn.stream.sendfile(file, offset, count);
     }
 };
