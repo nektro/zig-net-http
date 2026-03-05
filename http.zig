@@ -312,6 +312,10 @@ pub const HeadersMap = struct {
     }
 
     fn findIndex(map: *const HeadersMap, n: []const u8) ?usize {
+        for (n) |c| switch (c) {
+            'a'...'z', '-' => {},
+            else => unreachable,
+        };
         for (0..map.count()) |i| {
             if (std.mem.eql(u8, map.name(i), n)) {
                 return i;
