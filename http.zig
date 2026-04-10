@@ -175,24 +175,7 @@ pub fn open(allocator: std.mem.Allocator, method: Method, input: []const u8) !Cl
     const u = try url.URL.parse(allocator, input, null);
     defer allocator.free(u.href);
 
-    const addr: net.Address = switch (u.hostFancy()) {
-        .unset => unreachable,
-        .ipv4 => |int| .initIp4(@bitCast(int), u.portFancy().?),
-        .ipv6 => |int| .initIp6(@bitCast(int), u.portFancy().?),
-        .name => |hostname| blk: {
-            const hostnamez = try allocator.dupeZ(u8, hostname);
-            defer allocator.free(hostnamez);
-            const portz = try std.fmt.allocPrintZ(allocator, "{d}", .{u.portFancy().?});
-            defer allocator.free(portz);
-            const gai = try net.getaddrinfo(hostnamez, portz, null);
-            defer net.freeaddrinfo(gai);
-            break :blk switch (gai.addr.?.family) {
-                .INET => .{ .in = .{ .sa = @as(*net.Ip4Address.SockAddr, @ptrCast(@alignCast(gai.addr.?))).* } },
-                .INET6 => .{ .in6 = .{ .sa = @as(*net.Ip6Address.SockAddr, @ptrCast(@alignCast(gai.addr.?))).* } },
-                else => @panic("TODO"),
-            };
-        },
-    };
+    const addr: net.Address = .fromUrl(&u, allocator);
 
     const conn = try addr.tcpConnect();
     errdefer conn.close();
