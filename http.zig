@@ -515,6 +515,7 @@ pub const ServerRequest = struct {
 
         try req.server.writer.writeAll("\r\n");
         try req.server.writer.writeAll(body);
+        try req.server.writer.flush();
     }
 
     pub fn respondStreaming(req: *ServerRequest, status: Status, headers: *HeadersMap, body_length: ?u64) !void {
@@ -534,6 +535,7 @@ pub const ServerRequest = struct {
         }
 
         try req.server.writer.writeAll("\r\n");
+        try req.server.writer.flush();
     }
 
     pub fn sendfile(req: *ServerRequest, file: nfs.File, offset: net.off_t, count: ?usize) !void {
