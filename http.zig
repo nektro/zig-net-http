@@ -19,6 +19,8 @@ pub const Method = enum {
 };
 
 pub const Status = enum(u10) {
+    invalid = 0,
+
     @"continue" = 100, // RFC7231, Section 6.2.1
     switching_protocols = 101, // RFC7231, Section 6.2.2
     processing = 102, // RFC2518
@@ -175,7 +177,7 @@ pub fn open(allocator: std.mem.Allocator, method: Method, input: []const u8) !Cl
     const u = try url.URL.parse(allocator, input, null);
     defer allocator.free(u.href);
 
-    const addr: net.Address = .fromUrl(&u, allocator);
+    const addr: net.Address = try .fromUrl(&u, allocator);
 
     const conn = try addr.tcpConnect();
     errdefer conn.close();
@@ -202,7 +204,7 @@ pub fn open(allocator: std.mem.Allocator, method: Method, input: []const u8) !Cl
         .stream = conn,
         .writer = bufw,
         .reader = .init(conn),
-        .status = @enumFromInt(0),
+        .status = .invalid,
         .headers = .init(allocator),
     };
 }
