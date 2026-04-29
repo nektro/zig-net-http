@@ -13,6 +13,10 @@ test {
     try req.writeUA();
     try req.send();
 }
+test {
+    _ = &http.Status.phrase;
+    _ = &http.Status.digits;
+}
 
 // zig fmt: off
 test { try httpbinMethod(.http, .GET); }

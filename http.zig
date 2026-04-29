@@ -90,6 +90,8 @@ pub const Status = enum(u10) {
 
     pub fn phrase(self: Status) []const u8 {
         return switch (self) {
+            .invalid => unreachable,
+
             // 1xx statuses
             .@"continue" => "Continue",
             .switching_protocols => "Switching Protocols",
