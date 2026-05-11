@@ -421,6 +421,7 @@ pub const Server = struct {
         while (true) {
             const line = try server.reader.readUntilDelimitersBuf(&scratch_buffer, "\r\n");
             if (line.len == 0) break;
+            if (headers.count() == 128) return error.InvalidRequest;
             const name_end = std.mem.indexOfScalar(u8, line, ':') orelse return error.InvalidRequest;
             const name = line[0..name_end];
             for (name) |*c| {
