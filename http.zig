@@ -266,8 +266,22 @@ pub const ClientRequest = struct {
         }
     }
 
+    const R = nio.Readable(@This(), ._var);
+    pub const readAll = R.readAll;
+    pub const readAtLeast = R.readAtLeast;
+    pub const readNoEof = R.readNoEof;
+    pub const readAllAlloc = R.readAllAlloc;
+    pub const readArray = R.readArray;
+    pub const readByte = R.readByte;
+    pub const readUntilDelimiterArrayList = R.readUntilDelimiterArrayList;
+    pub const readUntilDelimiterAlloc = R.readUntilDelimiterAlloc;
+    pub const readUntilDelimitersBuf = R.readUntilDelimitersBuf;
+    pub const readUntilDelimitersArrayList = R.readUntilDelimitersArrayList;
+    pub const readAlloc = R.readAlloc;
+    pub const readInt = R.readInt;
+    pub const readUntilDelimitersAlloc = R.readUntilDelimitersAlloc;
+
     pub const ReadError = net.Stream.ReadError;
-    pub usingnamespace nio.Readable(@This(), ._var);
     pub fn read(req: *ClientRequest, buffer: []u8) ReadError!usize {
         return req.reader.read(buffer);
     }
