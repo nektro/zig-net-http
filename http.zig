@@ -481,7 +481,7 @@ pub const ServerRequest = struct {
         if (req.headers.find("content-length")) |s| {
             const content_length = try extras.parseDigits(u64, s, 10);
             if (content_length > max_size) return error.StreamTooLong;
-            var list: std.ArrayListUnmanaged(u8) = .{};
+            var list: std.ArrayListUnmanaged(u8) = .empty;
             try list.ensureUnusedCapacity(allocator, content_length);
             var total: usize = 0;
             while (total < content_length) {
