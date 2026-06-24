@@ -327,11 +327,11 @@ pub const HeadersMap = struct {
     }
 
     pub fn append(map: *HeadersMap, n: []const u8, v: []const u8) !void {
-        if (map.findIndex(n)) |i| {
+        if (!std.mem.eql(u8, n, "set-cookie")) if (map.findIndex(n)) |i| {
             try map.data.appendSlice(i * 4 + 2, ", ");
             try map.data.appendSlice(i * 4 + 2, v);
             return;
-        }
+        };
         try map.data.appendSlice(try map.data.add(), n);
         try map.data.appendSlice(try map.data.add(), ": ");
         try map.data.appendSlice(try map.data.add(), v);
