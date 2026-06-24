@@ -16,6 +16,7 @@ pub const Method = enum {
     OPTIONS,
     TRACE,
     PATCH,
+    QUERY,
 };
 
 pub const Status = enum(u10) {
