@@ -317,6 +317,7 @@ pub const HeadersMap = struct {
     fn findIndex(map: *const HeadersMap, n: []const u8) ?usize {
         for (n) |c| switch (c) {
             'a'...'z', '-' => {},
+            '0'...'9' => {},
             else => unreachable,
         };
         for (0..map.count()) |i| {
