@@ -9,6 +9,7 @@ dependencies:
   - src: git https://github.com/nektro/zig-nio
   - src: git https://github.com/nektro/zig-extras
   - src: git https://github.com/nektro/zig-nfs
+  - src: git https://github.com/nektro/zig-mime
 root_dependencies:
   - src: git https://github.com/nektro/zig-extras
   - src: git https://github.com/nektro/zig-json

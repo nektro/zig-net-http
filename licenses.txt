@@ -13,6 +13,7 @@ MIT:
 - git https://github.com/nektro/zig-expect
 - git https://github.com/nektro/zig-extras
 - git https://github.com/nektro/zig-json
+- git https://github.com/nektro/zig-mime
 - git https://github.com/nektro/zig-sys-darwin
 - git https://github.com/nektro/zig-sys-freebsd
 - git https://github.com/nektro/zig-sys-linux

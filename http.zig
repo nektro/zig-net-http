@@ -5,6 +5,7 @@ const url = @import("url");
 const nio = @import("nio");
 const extras = @import("extras");
 const nfs = @import("nfs");
+const mime = @import("mime");
 
 pub const Method = enum {
     GET,
@@ -562,5 +563,36 @@ pub const ServerRequest = struct {
 
     pub fn sendfile(req: *ServerRequest, file: nfs.File, offset: net.off_t, count: ?usize) !void {
         return req.server.conn.stream.sendfile(file, offset, count);
+    }
+
+    pub fn wants(req: *const ServerRequest, ty: mime.Type) bool {
+        const accept = req.headers.find("accept") orelse return false;
+        var iter = std.mem.splitScalar(u8, accept, ',');
+        while (iter.next()) |item| {
+            var jter = std.mem.splitScalar(u8, std.mem.trim(u8, item, " "), ';');
+            const jtem = jter.next().?;
+            if (std.mem.eql(u8, jtem, @tagName(ty))) return true;
+        }
+        return false;
+    }
+
+    pub fn canAccept(req: *const ServerRequest, ty: mime.Type) bool {
+        const accept = req.headers.find("accept") orelse return true;
+        const epart1, const epart2 = extras.splitScalarN(u8, @tagName(ty), '/', 2).?;
+        var iter = std.mem.splitScalar(u8, accept, ',');
+        while (iter.next()) |item| {
+            var jter = std.mem.splitScalar(u8, std.mem.trim(u8, item, " "), ';');
+            const jtem = jter.next().?;
+            const apart1, const apart2 = extras.splitScalarN(u8, jtem, '/', 2) orelse continue;
+            const is_p1 = std.mem.eql(u8, apart1, epart1);
+            const is_p2 = std.mem.eql(u8, apart2, epart2);
+            if (is_p1 and is_p2) return true;
+            const any_p1 = std.mem.eql(u8, apart1, "*");
+            if (any_p1 and is_p2) return true;
+            const any_p2 = std.mem.eql(u8, apart2, "*");
+            if (any_p2 and is_p1) return true;
+            if (any_p1 and any_p2) return true;
+        }
+        return false;
     }
 };
