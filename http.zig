@@ -170,9 +170,9 @@ pub const Status = enum(u10) {
 
     pub fn digits(self: Status) [3]u8 {
         var result: [3]u8 = undefined;
-        result[0] = @intCast((@intFromEnum(self) / 100) + '0');
-        result[1] = @intCast((@intFromEnum(self) / 10 % 10) + '0');
-        result[2] = @intCast((@intFromEnum(self) % 10) + '0');
+        result[0] = @intCast((@backingInt(self) / 100) + '0');
+        result[1] = @intCast((@backingInt(self) / 10 % 10) + '0');
+        result[2] = @intCast((@backingInt(self) % 10) + '0');
         return result;
     }
 };
