@@ -491,7 +491,7 @@ pub const ServerRequest = struct {
     pub fn readAllAlloc(req: *ServerRequest, allocator: std.mem.Allocator, max_size: usize) ![]u8 {
         if (req.headers.find("content-length")) |s| {
             const content_length = try extras.parseDigits(u64, s, 10);
-            if (content_length > max_size) return error.StreamTooLong;
+            if (content_length > max_size) return error.HttpContentTooLarge;
             var list: std.ArrayListUnmanaged(u8) = .empty;
             try list.ensureUnusedCapacity(allocator, content_length);
             var total: usize = 0;
@@ -515,7 +515,7 @@ pub const ServerRequest = struct {
     pub fn pipeTo(req: *ServerRequest, writable: anytype, max_size: ?usize) !void {
         if (req.headers.find("content-length")) |s| {
             const content_length = try extras.parseDigits(u64, s, 10);
-            if (max_size) |max| if (content_length > max) return error.StreamTooLong;
+            if (max_size) |max| if (content_length > max) return error.HttpContentTooLarge;
             var total: usize = 0;
             var scratch_buffer: [4096]u8 = undefined;
             while (total < content_length) {
