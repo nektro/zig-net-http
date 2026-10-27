@@ -528,7 +528,18 @@ pub const ServerRequest = struct {
         }
         if (req.headers.find("transfer-encoding")) |s| {
             if (std.mem.eql(u8, s, "chunked")) {
-                return error.TEChunked;
+                var max_size_left = max_size orelse std.math.maxInt(usize);
+                var scratch_buffer: [32]u8 = undefined;
+                while (true) {
+                    if (max_size_left == 0) return;
+                    const hex_s = try req.server.reader.readUntilDelimitersBuf(&scratch_buffer, "\r\n");
+                    const len = try extras.parseDigits(usize, hex_s, 16);
+                    if (len > max_size_left) return error.HttpContentTooLarge;
+                    try req.server.reader.pipeTo(writable, len);
+                    if (!try req.server.reader.readExpected("\r\n")) return error.HttpBadRequest;
+                    if (len == 0) return; // final chunk
+                    max_size_left -= len;
+                }
             }
             return error.TE;
         }
